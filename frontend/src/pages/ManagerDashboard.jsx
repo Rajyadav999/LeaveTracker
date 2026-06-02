@@ -65,8 +65,8 @@ export const ManagerDashboard = () => {
     return (
       <div className="space-y-6 p-6">
         <div className="h-8 w-48 skeleton rounded-lg" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-          {[1, 2, 3, 4].map(n => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+          {[1, 2, 3, 4, 5].map(n => (
             <div key={n} className="h-32 skeleton rounded-2xl" />
           ))}
         </div>
@@ -115,6 +115,14 @@ export const ManagerDashboard = () => {
       color: 'from-rose-500 to-red-600', 
       icon: XCircle,
       link: '/leave-requests?status=rejected'
+    },
+    { 
+      title: 'Most Active Month', 
+      value: summary?.mostActiveMonth?.month || 'None', 
+      sub: `${summary?.mostActiveMonth?.days || 0} approved days`,
+      color: 'from-purple-500 to-pink-600', 
+      icon: TrendingUp,
+      link: '/leave-requests'
     }
   ];
 
@@ -134,7 +142,7 @@ export const ManagerDashboard = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
         {statsCards.map((card, idx) => {
           const Icon = card.icon;
           return (
@@ -146,19 +154,19 @@ export const ManagerDashboard = () => {
               <Link to={card.link} className="absolute inset-0 z-10" />
               {/* Top Row */}
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{card.title}</p>
-                  <h3 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 mt-1.5">{card.value}</h3>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{card.title}</p>
+                  <h3 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 mt-1.5 truncate">{card.value}</h3>
                 </div>
-                <div className={`w-11 h-11 rounded-xl bg-gradient-to-tr ${card.color} text-white flex items-center justify-center shadow-md`}>
-                  <Icon className="w-5 h-5" />
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${card.color} text-white flex items-center justify-center shadow-md flex-shrink-0`}>
+                  <Icon className="w-4.5 h-4.5" />
                 </div>
               </div>
 
               {/* Subtext */}
               <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{card.sub}</span>
-                <span className="text-[10px] text-accent-600 dark:text-accent-400 font-semibold group-hover:underline">View details →</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">{card.sub}</span>
+                <span className="text-[9px] text-accent-600 dark:text-accent-400 font-semibold group-hover:underline flex-shrink-0">View →</span>
               </div>
             </motion.div>
           );
@@ -179,11 +187,17 @@ export const ManagerDashboard = () => {
           <div className="h-64 w-full">
             {trend?.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                No leave approval trends logged.
+                No approved leaves recorded in the last 6 months.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={trend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.9}/>
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.4}/>
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-800/80" />
                   <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94a3b8" />
                   <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" allowDecimals={false} />
@@ -196,11 +210,7 @@ export const ManagerDashboard = () => {
                       border: '1px solid #cbd5e1'
                     }} 
                   />
-                  <Bar dataKey="days" fill="#6366f1" radius={[6, 6, 0, 0]}>
-                    {trend?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="days" fill="url(#trendGradient)" radius={[6, 6, 0, 0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -278,6 +288,12 @@ export const ManagerDashboard = () => {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={departmentStats} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="deptGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.95}/>
+                      <stop offset="95%" stopColor="#a78bfa" stopOpacity={0.55}/>
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-slate-800/80" />
                   <XAxis type="number" tick={{ fontSize: 10 }} stroke="#94a3b8" />
                   <YAxis dataKey="department" type="category" tick={{ fontSize: 10 }} stroke="#94a3b8" width={90} />
@@ -290,7 +306,7 @@ export const ManagerDashboard = () => {
                       border: '1px solid #cbd5e1'
                     }} 
                   />
-                  <Bar dataKey="days" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="days" fill="url(#deptGradient)" radius={[0, 4, 4, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             )}

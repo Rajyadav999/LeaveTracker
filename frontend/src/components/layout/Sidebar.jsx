@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, 
+  Calendar,
   CalendarPlus, 
   History, 
   Inbox, 
@@ -26,6 +27,7 @@ export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       return [
         { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/leave-requests', label: 'Leave Requests', icon: Inbox },
+        { path: '/calendar', label: 'Leave Calendar', icon: Calendar },
         { path: '/employee-records', label: 'Employee Records', icon: Users },
         { path: '/profile', label: 'Profile Settings', icon: User },
       ];
@@ -34,6 +36,7 @@ export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
         { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/apply-leave', label: 'Apply Leave', icon: CalendarPlus },
         { path: '/leave-history', label: 'Leave History', icon: History },
+        { path: '/calendar', label: 'Leave Calendar', icon: Calendar },
         { path: '/profile', label: 'Profile Settings', icon: User },
       ];
     }
@@ -69,7 +72,7 @@ export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
                 exit={{ opacity: 0 }}
                 className="font-bold text-lg bg-gradient-to-r from-accent-600 to-indigo-600 bg-clip-text text-transparent truncate"
               >
-                AntigravityHR
+                Leave_Tracker
               </motion.span>
             )}
           </div>
@@ -172,7 +175,7 @@ export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
                     <Palmtree className="w-5 h-5" />
                   </div>
                   <span className="font-bold text-lg bg-gradient-to-r from-accent-600 to-indigo-600 bg-clip-text text-transparent">
-                    AntigravityHR
+                    Leave_Tracker
                   </span>
                 </div>
                 <button 

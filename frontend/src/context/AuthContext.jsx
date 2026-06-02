@@ -55,21 +55,61 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Send Register OTP
+  const sendOtp = async (email) => {
+    try {
+      const response = await axios.post('http://localhost:5000/api/auth/send-otp', { email });
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to send OTP verification code.'
+      };
+    }
+  };
+
   // Register handler
-  const registerUser = async (name, email, password, role, department) => {
+  const registerUser = async (name, email, password, role, department, otp) => {
     try {
       await axios.post('http://localhost:5000/api/auth/register', {
         name,
         email,
         password,
         role,
-        department
+        department,
+        otp
       });
       return { success: true };
     } catch (error) {
       return {
         success: false,
         message: error.response?.data?.message || 'Registration failed.'
+      };
+    }
+  };
+
+  // Forgot Password handler
+  const forgotPassword = async (email) => {
+    try {
+      const response = await axios.post('http://localhost:5000/api/auth/forgot-password', { email });
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to request password reset OTP.'
+      };
+    }
+  };
+
+  // Reset Password handler
+  const resetPassword = async (email, otp, newPassword) => {
+    try {
+      const response = await axios.post('http://localhost:5000/api/auth/reset-password', { email, otp, newPassword });
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to reset password.'
       };
     }
   };
@@ -86,7 +126,18 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, registerUser, logout, updateProfileState }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token, 
+      loading, 
+      login, 
+      sendOtp,
+      registerUser, 
+      forgotPassword,
+      resetPassword,
+      logout, 
+      updateProfileState 
+    }}>
       {children}
     </AuthContext.Provider>
   );

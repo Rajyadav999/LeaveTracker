@@ -79,7 +79,7 @@ export const Landing = () => {
     },
     {
       q: "Is the system secure?",
-      a: "Yes. AntigravityHR utilizes industry-standard JWT (JSON Web Tokens) for session authorization and hashes user passwords using bcryptjs, enforcing role-based endpoint access control."
+      a: "Yes. Leave_Tracker utilizes industry-standard JWT (JSON Web Tokens) for session authorization and hashes user passwords using bcryptjs, enforcing role-based endpoint access control."
     }
   ];
 
@@ -92,7 +92,7 @@ export const Landing = () => {
             <Palmtree className="w-5 h-5" />
           </div>
           <span className="font-bold text-lg bg-gradient-to-r from-accent-600 to-indigo-600 bg-clip-text text-transparent">
-            AntigravityHR
+            Leave_Tracker
           </span>
         </div>
 
@@ -217,7 +217,7 @@ export const Landing = () => {
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 </div>
                 <div className="bg-slate-900 px-12 py-1 rounded-md text-[10px] text-slate-500 font-medium">
-                  antigravityhr.company.com/dashboard
+                  leavetracker.company.com/dashboard
                 </div>
                 <div className="w-10" />
               </div>
@@ -228,7 +228,7 @@ export const Landing = () => {
                 <div className="w-1/5 bg-slate-950 border-r border-slate-850/50 p-4 space-y-4 hidden sm:block">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 rounded-lg bg-accent-600 flex items-center justify-center text-white font-bold text-[10px]">A</span>
-                    <span className="font-bold text-white text-[11px] truncate">AntigravityHR</span>
+                    <span className="font-bold text-white text-[11px] truncate">Leave_Tracker</span>
                   </div>
                   <div className="space-y-1">
                     {[
@@ -611,7 +611,7 @@ export const Landing = () => {
               Empower HR and Workforce Management
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Why fast-growing companies trust AntigravityHR to manage operational scheduling.
+              Why fast-growing companies trust Leave_Tracker to manage operational scheduling.
             </p>
           </div>
 
@@ -656,7 +656,7 @@ export const Landing = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {[
             {
-              quote: "AntigravityHR transformed our leave workflow. Reviewing and comments take seconds instead of dragging through spreadsheets.",
+              quote: "Leave_Tracker transformed our leave workflow. Reviewing and comments take seconds instead of dragging through spreadsheets.",
               author: "Sarah Chen",
               role: "Head of HR, LinearTech",
               avatar: "SC"
@@ -774,7 +774,7 @@ export const Landing = () => {
               <div className="w-8 h-8 rounded-lg bg-accent-600 flex items-center justify-center text-white font-bold">
                 <Palmtree className="w-4.5 h-4.5" />
               </div>
-              <span className="font-extrabold text-slate-800 dark:text-white text-sm">AntigravityHR</span>
+              <span className="font-extrabold text-slate-800 dark:text-white text-sm">Leave_Tracker</span>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed max-w-xs">
               Providing modern, enterprise-grade leave management and HR coordination tools for high-velocity teams.
@@ -822,7 +822,7 @@ export const Landing = () => {
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" /><rect width="4" height="12" x="2" y="9" /><circle cx="4" cy="4" r="2" /></svg>
               </a>
             </div>
-            <p className="text-[9px] text-slate-400">© 2026 AntigravityHR. All rights reserved.</p>
+            <p className="text-[9px] text-slate-400">© 2026 Leave_Tracker. All rights reserved.</p>
           </div>
         </div>
       </footer>

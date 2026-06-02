@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const mailer = require('../utils/mailer');
 
 // Helper to calculate duration in days (inclusive)
 const calculateDays = (start, end) => {
@@ -219,8 +220,8 @@ exports.getManagerRequests = async (req, res) => {
     }
 
     if (search) {
-      query += ' AND (u.name LIKE ? OR r.leave_type LIKE ? OR r.reason LIKE ?)';
-      queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      query += ' AND (u.name LIKE ? OR r.leave_type LIKE ? OR r.reason LIKE ? OR u.email LIKE ?)';
+      queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     query += ' ORDER BY r.created_at DESC LIMIT ? OFFSET ?';
@@ -242,8 +243,8 @@ exports.getManagerRequests = async (req, res) => {
       countParams.push(status);
     }
     if (search) {
-      countQuery += ' AND (u.name LIKE ? OR r.leave_type LIKE ? OR r.reason LIKE ?)';
-      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      countQuery += ' AND (u.name LIKE ? OR r.leave_type LIKE ? OR r.reason LIKE ? OR u.email LIKE ?)';
+      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     const [countResult] = await db.query(countQuery, countParams);
@@ -295,9 +296,10 @@ exports.processRequest = async (req, res) => {
 
     const { user_id, leave_type, duration } = request;
 
-    // Fetch employee name
-    const [employees] = await connection.query('SELECT name FROM users WHERE id = ?', [user_id]);
+    // Fetch employee details
+    const [employees] = await connection.query('SELECT name, email FROM users WHERE id = ?', [user_id]);
     const employeeName = employees[0]?.name || 'Employee';
+    const employeeEmail = employees[0]?.email;
 
     if (status === 'approved') {
       // Deduct from pending, add to used
@@ -364,6 +366,28 @@ exports.processRequest = async (req, res) => {
     await connection.commit();
     connection.release();
 
+    // Trigger email alert asynchronously
+    if (employeeEmail) {
+      if (status === 'approved') {
+        mailer.sendLeaveApprovalEmail(
+          employeeEmail,
+          employeeName,
+          leave_type,
+          request.start_date,
+          request.end_date
+        ).catch(err => console.error('Failed to send leave approval email:', err));
+      } else {
+        mailer.sendLeaveRejectionEmail(
+          employeeEmail,
+          employeeName,
+          leave_type,
+          request.start_date,
+          request.end_date,
+          remarks
+        ).catch(err => console.error('Failed to send leave rejection email:', err));
+      }
+    }
+
     res.status(200).json({ message: `Leave request has been successfully ${status}.` });
   } catch (error) {
     if (connection) {
@@ -392,8 +416,8 @@ exports.getEmployeeRecords = async (req, res) => {
     const params = [];
 
     if (search) {
-      query += ' AND (u.name LIKE ? OR u.department LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
+      query += ' AND (u.name LIKE ? OR u.department LIKE ? OR u.email LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     query += ' GROUP BY u.id';
@@ -463,7 +487,7 @@ exports.getDashboardStats = async (req, res) => {
           rejected: counts[0].rejected || 0,
           balances
         },
-        trend,
+        trend: trend.map(t => ({ ...t, days: Number(t.days || 0) })),
         activities
       });
     } else {
@@ -505,6 +529,19 @@ exports.getDashboardStats = async (req, res) => {
          GROUP BY u.department`
       );
 
+      // 4b. Most active leave month
+      const [mostActiveResult] = await db.query(
+        `SELECT DATE_FORMAT(start_date, '%b %Y') as month, SUM(duration) as days 
+         FROM leave_requests 
+         WHERE status = 'approved' 
+         GROUP BY DATE_FORMAT(start_date, '%Y-%m'), DATE_FORMAT(start_date, '%b %Y')
+         ORDER BY days DESC LIMIT 1`
+      );
+      const mostActiveMonth = mostActiveResult[0] ? {
+        month: mostActiveResult[0].month,
+        days: Number(mostActiveResult[0].days || 0)
+      } : { month: 'None', days: 0 };
+
       // 5. Recent Activity Logs (last 10 across all users)
       const [activities] = await db.query(
         `SELECT a.action, a.created_at, u.name as user_name, u.role as user_role 
@@ -518,16 +555,48 @@ exports.getDashboardStats = async (req, res) => {
           totalEmployees: userCount[0].total || 0,
           pending: counts[0].pending || 0,
           approved: counts[0].approved || 0,
-          rejected: counts[0].rejected || 0
+          rejected: counts[0].rejected || 0,
+          mostActiveMonth
         },
-        distribution,
-        trend,
-        departmentStats,
+        distribution: distribution.map(d => ({ ...d, value: Number(d.value || 0) })),
+        trend: trend.map(t => ({ ...t, days: Number(t.days || 0) })),
+        departmentStats: departmentStats.map(ds => ({ ...ds, days: Number(ds.days || 0) })),
         activities
       });
     }
   } catch (error) {
     console.error('Error fetching dashboard statistics:', error);
     res.status(500).json({ message: 'Internal server error fetching dashboard statistics.' });
+  }
+};
+
+// Get all leaves for Calendar view
+exports.getCalendarLeaves = async (req, res) => {
+  const { id, role } = req.user;
+
+  try {
+    if (role === 'manager') {
+      // Manager views ALL leaves (pending, approved, rejected)
+      const [leaves] = await db.query(`
+        SELECT r.*, u.name as employee_name, u.email as employee_email, u.department
+        FROM leave_requests r
+        JOIN users u ON r.user_id = u.id
+      `);
+      res.status(200).json(leaves);
+    } else {
+      // Employee views:
+      // 1. Their own leaves (all statuses)
+      // 2. Other employees' APPROVED leaves
+      const [leaves] = await db.query(`
+        SELECT r.*, u.name as employee_name, u.email as employee_email, u.department
+        FROM leave_requests r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.user_id = ? OR (r.status = 'approved' AND u.role = 'employee')
+      `, [id]);
+      res.status(200).json(leaves);
+    }
+  } catch (error) {
+    console.error('Error fetching calendar leaves:', error);
+    res.status(500).json({ message: 'Internal server error fetching calendar leaves.' });
   }
 };

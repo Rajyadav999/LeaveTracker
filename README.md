@@ -1,4 +1,4 @@
-# AntigravityHR — Employee Leave Management System
+# Leave_Tracker — Employee Leave Management System
 
 A premium, secure, and production-ready enterprise HRMS dashboard designed for managing employee leaves, tracking real-time allocations, and handling manager review workflows. Built with a modern, high-fidelity user interface matching state-of-the-art SaaS designs like Linear, Notion, and Workday.
 

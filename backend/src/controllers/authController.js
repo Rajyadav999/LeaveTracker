@@ -1,14 +1,14 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const mailer = require('../utils/mailer');
 require('dotenv').config();
 
-// Register a new user
 exports.register = async (req, res) => {
-  const { name, email, password, role, department } = req.body;
+  const { name, email, password, role, department, otp } = req.body;
 
-  if (!name || !email || !password || !role || !department) {
-    return res.status(400).json({ message: 'All fields are required.' });
+  if (!name || !email || !password || !role || !department || !otp) {
+    return res.status(400).json({ message: 'All fields including OTP code are required.' });
   }
 
   if (role !== 'employee' && role !== 'manager') {
@@ -19,6 +19,20 @@ exports.register = async (req, res) => {
   try {
     connection = await db.getConnection();
     await connection.beginTransaction();
+
+    // Verify OTP
+    const [otpRecord] = await connection.query(
+      'SELECT id FROM otp_verifications WHERE email = ? AND otp = ? AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
+      [email, otp]
+    );
+
+    if (otpRecord.length === 0) {
+      connection.release();
+      return res.status(400).json({ message: 'Invalid or expired OTP verification code.' });
+    }
+
+    // Delete verified OTP so it cannot be reused
+    await connection.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
 
     // Check if user already exists
     const [existing] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);
@@ -229,5 +243,141 @@ exports.changePassword = async (req, res) => {
   } catch (error) {
     console.error('Error changing password:', error);
     res.status(500).json({ message: 'Internal server error changing password.' });
+  }
+};
+
+// Send OTP for new User Registration
+exports.sendRegisterOtp = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email address is required.' });
+  }
+
+  try {
+    // Check if email already registered
+    const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      return res.status(400).json({ message: 'Email is already registered.' });
+    }
+
+    // Delete any old OTPs for this email
+    await db.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store in DB, expires in 10 minutes
+    await db.query(
+      'INSERT INTO otp_verifications (email, otp, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))',
+      [email, otp]
+    );
+
+    // Send the email
+    await mailer.sendOtpEmail(email, otp);
+
+    res.status(200).json({ message: 'Verification OTP sent to your email.' });
+  } catch (error) {
+    console.error('Error sending registration OTP:', error);
+    res.status(500).json({ message: 'Failed to send verification OTP.' });
+  }
+};
+
+// Send OTP for Forgot/Reset Password
+exports.sendResetPasswordOtp = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email address is required.' });
+  }
+
+  try {
+    // Check if user exists
+    const [users] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'No account found with this email address.' });
+    }
+
+    // Delete any old OTPs for this email
+    await db.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
+
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store in DB
+    await db.query(
+      'INSERT INTO otp_verifications (email, otp, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))',
+      [email, otp]
+    );
+
+    // Send email
+    await mailer.sendOtpEmail(email, otp);
+
+    res.status(200).json({ message: 'Password reset OTP sent to your email.' });
+  } catch (error) {
+    console.error('Error sending reset OTP:', error);
+    res.status(500).json({ message: 'Failed to send password reset OTP.' });
+  }
+};
+
+// Reset password using OTP verification
+exports.resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ message: 'Email, OTP, and new password are required.' });
+  }
+
+  let connection;
+  try {
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    // Verify OTP
+    const [otpRecord] = await connection.query(
+      'SELECT id FROM otp_verifications WHERE email = ? AND otp = ? AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
+      [email, otp]
+    );
+
+    if (otpRecord.length === 0) {
+      connection.release();
+      return res.status(400).json({ message: 'Invalid or expired OTP code.' });
+    }
+
+    // Delete verified OTP
+    await connection.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
+
+    // Get user id to log activity
+    const [users] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (users.length === 0) {
+      connection.release();
+      return res.status(404).json({ message: 'User not found.' });
+    }
+    const userId = users[0].id;
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const newPasswordHash = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    await connection.query('UPDATE users SET password_hash = ? WHERE id = ?', [newPasswordHash, userId]);
+
+    // Log Activity
+    await connection.query('INSERT INTO activity_logs (user_id, action) VALUES (?, ?)', [
+      userId,
+      'Reset password using email OTP verification'
+    ]);
+
+    await connection.commit();
+    connection.release();
+
+    res.status(200).json({ message: 'Password has been reset successfully.' });
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+      connection.release();
+    }
+    console.error('Error resetting password:', error);
+    res.status(500).json({ message: 'Internal server error resetting password.' });
   }
 };

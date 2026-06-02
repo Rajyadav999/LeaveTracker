@@ -71,3 +71,14 @@ CREATE TABLE IF NOT EXISTS `activity_logs` (
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   INDEX `idx_user_activity` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6. OTP Verifications Table
+CREATE TABLE IF NOT EXISTS `otp_verifications` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `email` VARCHAR(100) NOT NULL,
+  `otp` VARCHAR(6) NOT NULL,
+  `expires_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_email_otp` (`email`, `otp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

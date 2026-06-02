@@ -229,7 +229,7 @@ export const EmployeeDashboard = () => {
                       border: '1px solid #cbd5e1'
                     }} 
                   />
-                  <Bar dataKey="days" fill="url(#colorDays)" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="days" fill="url(#colorDays)" radius={[6, 6, 0, 0]} barSize={40}>
                     {trend?.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}

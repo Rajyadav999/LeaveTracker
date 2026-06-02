@@ -24,4 +24,7 @@ router.get('/manager/employees', verifyToken, requireRole('manager'), leaveContr
 // Get dashboard statistics (Employee and Manager)
 router.get('/stats', verifyToken, leaveController.getDashboardStats);
 
+// Get calendar leave events (Employee and Manager)
+router.get('/calendar', verifyToken, leaveController.getCalendarLeaves);
+
 module.exports = router;

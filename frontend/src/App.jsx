@@ -13,6 +13,7 @@ import { LeaveHistory } from './pages/LeaveHistory';
 import { LeaveRequests } from './pages/LeaveRequests';
 import { EmployeeRecords } from './pages/EmployeeRecords';
 import { Profile } from './pages/Profile';
+import { LeaveCalendar } from './pages/LeaveCalendar';
 
 import { Sidebar } from './components/layout/Sidebar';
 import { Navbar } from './components/layout/Navbar';
@@ -140,6 +141,17 @@ function AppRoutes() {
           <ProtectedRoute>
             <LayoutWrapper>
               <Profile />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        } 
+      />
+
+      <Route 
+        path="/calendar" 
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <LeaveCalendar />
             </LayoutWrapper>
           </ProtectedRoute>
         } 

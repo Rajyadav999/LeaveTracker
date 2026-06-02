@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -13,7 +14,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Inbox,
-  UserCheck
+  UserCheck,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -117,15 +119,52 @@ export const LeaveRequests = () => {
     }
   };
 
+  const handleExportExcel = () => {
+    if (requests.length === 0) return;
+
+    const exportData = requests.map(r => ({
+      'Employee Name': r.employee_name,
+      'Employee Email': r.employee_email,
+      'Department': r.department,
+      'Leave Type': r.leave_type,
+      'Duration (Days)': r.duration,
+      'Start Date': r.start_date,
+      'End Date': r.end_date,
+      'Reason': r.reason,
+      'Status': r.status,
+      'Manager Remarks': r.remarks || 'None',
+      'Processed By': r.manager_name || 'N/A'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Leave Requests');
+    worksheet['!cols'] = Object.keys(exportData[0] || {}).map(k => ({ wch: Math.max(k.length + 2, 12) }));
+    XLSX.writeFile(workbook, `leave_requests_${activeTab}.xlsx`);
+  };
+
   const getStatusBadge = (status) => {
-    const configs = {
-      pending: 'bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/50',
-      approved: 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-900/50',
-      rejected: 'bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-200/50 dark:border-rose-900/50'
-    };
+    const dotClass = "dot";
+    if (status === 'approved') {
+      return (
+        <span className="badge-status badge-approved">
+          <span className={dotClass} />
+          Approved
+        </span>
+      );
+    }
+    if (status === 'rejected') {
+      return (
+        <span className="badge-status badge-rejected">
+          <span className={dotClass} />
+          Rejected
+        </span>
+      );
+    }
     return (
-      <span className={`px-2.5 py-1 text-[10px] font-semibold tracking-wide border rounded-full capitalize ${configs[status]}`}>
-        {status}
+      <span className="badge-status badge-pending">
+        <span className={dotClass} />
+        Pending
       </span>
     );
   };
@@ -142,7 +181,7 @@ export const LeaveRequests = () => {
       <div className="border-b border-slate-200 dark:border-slate-850 flex gap-6 text-sm">
         <button
           onClick={() => { setActiveTab('pending'); setPage(1); }}
-          className={`pb-3 font-semibold relative ${
+          className={`pb-3 font-semibold relative cursor-pointer ${
             activeTab === 'pending' 
               ? 'text-accent-600 dark:text-accent-400' 
               : 'text-slate-400 hover:text-slate-600'
@@ -156,7 +195,7 @@ export const LeaveRequests = () => {
 
         <button
           onClick={() => { setActiveTab('processed'); setPage(1); }}
-          className={`pb-3 font-semibold relative ${
+          className={`pb-3 font-semibold relative cursor-pointer ${
             activeTab === 'processed' 
               ? 'text-accent-600 dark:text-accent-400' 
               : 'text-slate-400 hover:text-slate-600'
@@ -176,36 +215,72 @@ export const LeaveRequests = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search employee, leave type, department..."
+            placeholder="Search employee, leave type, department, email..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full pl-10 pr-4 py-2.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl focus:outline-none focus:ring-1 focus:ring-accent-500 dark:text-white"
           />
         </div>
+
+        {/* Export Button */}
+        <button
+          onClick={handleExportExcel}
+          disabled={requests.length === 0 || loading}
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-emerald-600/25 active:scale-[0.98] transition-all cursor-pointer"
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          Export to Excel
+        </button>
       </div>
 
       {/* Main Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-850 rounded-2xl shadow-sm overflow-hidden">
         {loading ? (
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {[1, 2, 3, 4].map(n => (
-              <div key={n} className="p-5 flex items-center justify-between">
-                <div className="space-y-2 w-1/3">
-                  <div className="h-4 skeleton rounded" />
-                  <div className="h-3 w-1/2 skeleton rounded" />
-                </div>
-                <div className="h-4 w-12 skeleton rounded" />
-                <div className="h-4 w-20 skeleton rounded" />
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/70 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-850 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-4">Employee</th>
+                  <th className="px-6 py-4">Department</th>
+                  <th className="px-6 py-4">Leave Type</th>
+                  <th className="px-6 py-4">Duration</th>
+                  <th className="px-6 py-4">Start / End Date</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                {[1, 2, 3].map((n) => (
+                  <tr key={n}>
+                    <td className="px-6 py-4.5">
+                      <div className="space-y-1.5">
+                        <div className="h-3 w-28 skeleton rounded" />
+                        <div className="h-2.5 w-36 skeleton rounded" />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4.5"><div className="h-3 w-20 skeleton rounded" /></td>
+                    <td className="px-6 py-4.5"><div className="h-3.5 w-24 skeleton rounded" /></td>
+                    <td className="px-6 py-4.5"><div className="h-3 w-12 skeleton rounded" /></td>
+                    <td className="px-6 py-4.5">
+                      <div className="space-y-1.5">
+                        <div className="h-2.5 w-16 skeleton rounded" />
+                        <div className="h-2 w-16 skeleton rounded" />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4.5"><div className="h-5 w-20 skeleton rounded-full" /></td>
+                    <td className="px-6 py-4.5 text-right"><div className="inline-block h-8 w-24 skeleton rounded-lg" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : requests.length === 0 ? (
           <div className="p-16 flex flex-col items-center justify-center text-center">
-            <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-950 flex items-center justify-center border border-slate-100 dark:border-slate-800 mb-4">
-              <FolderOpen className="w-6 h-6 text-slate-400" />
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-950 flex items-center justify-center border border-slate-100 dark:border-slate-800 mb-4 shadow-sm">
+              <Inbox className="w-8 h-8 text-slate-400" />
             </div>
-            <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-200">No Requests Found</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm">No leave applications currently match this tab. You're all caught up!</p>
+            <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">No Requests Found</h3>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm">No leave applications currently match this search or filter. You're all caught up!</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -228,7 +303,10 @@ export const LeaveRequests = () => {
                     className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors"
                   >
                     <td className="px-6 py-4.5 font-bold text-slate-800 dark:text-slate-200">
-                      {request.employee_name}
+                      <div className="flex flex-col">
+                        <span>{request.employee_name}</span>
+                        <span className="text-[10px] text-slate-400 font-normal">{request.employee_email}</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4.5 font-medium text-slate-500 dark:text-slate-400">
                       {request.department}
@@ -250,7 +328,7 @@ export const LeaveRequests = () => {
                       {request.status === 'pending' ? (
                         <button
                           onClick={() => { setSelectedRequest(request); setRemarks(''); }}
-                          className="px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-700 text-white font-semibold flex items-center gap-1.5 transition-colors text-[10px] ml-auto"
+                          className="px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-700 text-white font-semibold flex items-center gap-1.5 transition-colors text-[10px] ml-auto cursor-pointer"
                         >
                           <Inbox className="w-3.5 h-3.5" />
                           Review Request
@@ -258,7 +336,7 @@ export const LeaveRequests = () => {
                       ) : (
                         <button
                           onClick={() => { setSelectedRequest(request); setRemarks(''); }}
-                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 font-semibold inline-flex items-center gap-1 text-[10px]"
+                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 font-semibold inline-flex items-center gap-1 text-[10px] cursor-pointer animate-fade"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           View Review
@@ -280,14 +358,14 @@ export const LeaveRequests = () => {
               <button
                 disabled={page === 1}
                 onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                className="p-1.5 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 disabled:opacity-50"
+                className="p-1.5 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 disabled:opacity-50 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 disabled={page === pagination.totalPages}
                 onClick={() => setPage(prev => Math.min(pagination.totalPages, prev + 1))}
-                className="p-1.5 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 disabled:opacity-50"
+                className="p-1.5 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 disabled:opacity-50 cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -331,7 +409,7 @@ export const LeaveRequests = () => {
                 <button 
                   onClick={() => setSelectedRequest(null)}
                   aria-label="Close review"
-                  className="p-2 -mt-2 -mr-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="p-2 -mt-2 -mr-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -370,7 +448,7 @@ export const LeaveRequests = () => {
                     {selectedRequest.employee_name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="font-bold text-slate-900 dark:text-slate-100">{selectedRequest.employee_name}</h4>
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100 truncate">{selectedRequest.employee_name}</h4>
                     <p className="text-[10px] text-slate-400 capitalize truncate">{selectedRequest.department} - {selectedRequest.employee_email}</p>
                   </div>
                   <div className="ml-auto">{getStatusBadge(selectedRequest.status)}</div>
@@ -440,7 +518,7 @@ export const LeaveRequests = () => {
                         <button
                           onClick={() => handleProcessRequest(selectedRequest.id, 'rejected')}
                           disabled={processing}
-                          className="py-3 px-4 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 rounded-xl font-bold flex items-center justify-center gap-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                          className="py-3 px-4 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 rounded-xl font-bold flex items-center justify-center gap-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/20 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
                         >
                           <X className="w-4 h-4" />
                           Reject
@@ -448,7 +526,7 @@ export const LeaveRequests = () => {
                         <button
                           onClick={() => handleProcessRequest(selectedRequest.id, 'approved')}
                           disabled={processing}
-                          className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 hover:shadow-lg hover:shadow-emerald-600/25 active:scale-[0.98] transition-all disabled:opacity-50"
+                          className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 hover:shadow-lg hover:shadow-emerald-600/25 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
                         >
                           <Check className="w-4 h-4" />
                           Approve
