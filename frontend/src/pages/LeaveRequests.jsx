@@ -17,7 +17,8 @@ import {
   UserCheck,
   FileSpreadsheet
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
+import API_BASE_URL from '../config/api';
 
 export const LeaveRequests = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -36,6 +37,7 @@ export const LeaveRequests = () => {
   const [activeTab, setActiveTab] = useState(initialStatus === 'pending' ? 'pending' : 'processed');
   const [page, setPage] = useState(1);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [processedFilter, setProcessedFilter] = useState('all');
   
   // Processing Form state
   const [remarks, setRemarks] = useState('');
@@ -47,7 +49,7 @@ export const LeaveRequests = () => {
     setLoading(true);
     try {
       const statusParam = activeTab === 'pending' ? 'pending' : '';
-      const response = await axios.get('http://localhost:5000/api/leaves/manager/requests', {
+      const response = await axios.get(`${API_BASE_URL}/api/leaves/manager/requests`, {
         params: {
           search,
           status: statusParam, // if blank, returns all (which manager can filter or see processed items)
@@ -96,7 +98,7 @@ export const LeaveRequests = () => {
     setSuccess('');
 
     try {
-      await axios.put(`http://localhost:5000/api/leaves/manager/requests/${requestId}`, {
+      await axios.put(`${API_BASE_URL}/api/leaves/manager/requests/${requestId}`, {
         status: decision,
         remarks
       });
@@ -169,6 +171,14 @@ export const LeaveRequests = () => {
     );
   };
 
+  const displayedRequests = activeTab === 'processed' 
+    ? requests.filter(r => {
+        if (processedFilter === 'approved') return r.status === 'approved';
+        if (processedFilter === 'rejected') return r.status === 'rejected';
+        return true;
+      })
+    : requests;
+
   return (
     <div className="p-6 space-y-8 max-w-6xl mx-auto">
       {/* Page Title */}
@@ -207,6 +217,43 @@ export const LeaveRequests = () => {
           )}
         </button>
       </div>
+
+      {/* Processed Sub-filters */}
+      {activeTab === 'processed' && (
+        <div className="flex items-center gap-2 text-xs bg-white dark:bg-slate-900 p-2 border border-slate-200/50 dark:border-slate-850 rounded-xl w-fit">
+          <span className="text-slate-400 font-semibold px-2">Filter:</span>
+          <button
+            onClick={() => setProcessedFilter('all')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              processedFilter === 'all'
+                ? 'bg-accent-600 text-white font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setProcessedFilter('approved')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              processedFilter === 'approved'
+                ? 'bg-emerald-600 text-white font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850'
+            }`}
+          >
+            Approved
+          </button>
+          <button
+            onClick={() => setProcessedFilter('rejected')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              processedFilter === 'rejected'
+                ? 'bg-rose-600 text-white font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850'
+            }`}
+          >
+            Rejected
+          </button>
+        </div>
+      )}
 
       {/* Filters and Controls */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white dark:bg-slate-900 p-4 border border-slate-200/50 dark:border-slate-850 rounded-2xl shadow-sm">
@@ -274,7 +321,7 @@ export const LeaveRequests = () => {
               </tbody>
             </table>
           </div>
-        ) : requests.length === 0 ? (
+        ) : displayedRequests.length === 0 ? (
           <div className="p-16 flex flex-col items-center justify-center text-center">
             <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-950 flex items-center justify-center border border-slate-100 dark:border-slate-800 mb-4 shadow-sm">
               <Inbox className="w-8 h-8 text-slate-400" />
@@ -297,7 +344,7 @@ export const LeaveRequests = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-xs text-slate-700 dark:text-slate-300">
-                {requests.map((request) => (
+                {displayedRequests.map((request) => (
                   <tr 
                     key={request.id} 
                     className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors"
@@ -325,23 +372,31 @@ export const LeaveRequests = () => {
                       {getStatusBadge(request.status)}
                     </td>
                     <td className="px-6 py-4.5 text-right">
-                      {request.status === 'pending' ? (
-                        <button
-                          onClick={() => { setSelectedRequest(request); setRemarks(''); }}
-                          className="px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-700 text-white font-semibold flex items-center gap-1.5 transition-colors text-[10px] ml-auto cursor-pointer"
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          to={`/leave-requests/${request.id}`}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 font-semibold inline-flex items-center gap-1 text-[10px] cursor-pointer"
                         >
-                          <Inbox className="w-3.5 h-3.5" />
-                          Review Request
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => { setSelectedRequest(request); setRemarks(''); }}
-                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 font-semibold inline-flex items-center gap-1 text-[10px] cursor-pointer animate-fade"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View Review
-                        </button>
-                      )}
+                          Details
+                        </Link>
+                        {request.status === 'pending' ? (
+                          <button
+                            onClick={() => { setSelectedRequest(request); setRemarks(''); }}
+                            className="px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-700 text-white font-semibold flex items-center gap-1.5 transition-colors text-[10px] cursor-pointer"
+                          >
+                            <Inbox className="w-3.5 h-3.5" />
+                            Review
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { setSelectedRequest(request); setRemarks(''); }}
+                            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 font-semibold inline-flex items-center gap-1 text-[10px] cursor-pointer animate-fade"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View Review
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

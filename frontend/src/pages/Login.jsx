@@ -87,6 +87,11 @@ export const Login = () => {
           setError(res.message);
         }
       } else {
+        if (newPassword.length < 8) {
+          setError('New password must be at least 8 characters long.');
+          setLoading(false);
+          return;
+        }
         const res = await resetPassword(forgotEmail, resetOtpCode, newPassword);
         if (res.success) {
           setSuccess('Password reset successfully! You can now log in.');
@@ -110,6 +115,11 @@ export const Login = () => {
           setError(res.message);
         }
       } else {
+        if (formData.password.length < 8) {
+          setError('Password must be at least 8 characters long.');
+          setLoading(false);
+          return;
+        }
         const res = await registerUser(
           formData.name,
           formData.email,

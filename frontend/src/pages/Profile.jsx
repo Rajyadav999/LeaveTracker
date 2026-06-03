@@ -3,6 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Key, CheckCircle, AlertTriangle, Briefcase, Mail } from 'lucide-react';
+import API_BASE_URL from '../config/api';
 
 export const Profile = () => {
   const { user, updateProfileState } = useContext(AuthContext);
@@ -45,7 +46,7 @@ export const Profile = () => {
     setProfileSuccess('');
 
     try {
-      const response = await axios.put('http://localhost:5000/api/auth/profile', profileData);
+      const response = await axios.put(`${API_BASE_URL}/api/auth/profile`, profileData);
       updateProfileState(response.data.user);
       setProfileSuccess('Profile details updated successfully!');
     } catch (err) {
@@ -68,7 +69,7 @@ export const Profile = () => {
     }
 
     try {
-      await axios.put('http://localhost:5000/api/auth/change-password', {
+      await axios.put(`${API_BASE_URL}/api/auth/change-password`, {
         oldPassword: passwordData.oldPassword,
         newPassword: passwordData.newPassword
       });
