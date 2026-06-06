@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
+import API_BASE_URL from '../config/api';
 import { 
   Search, 
   ChevronDown, 
@@ -22,7 +23,7 @@ export const EmployeeRecords = () => {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/api/leaves/manager/employees', {
+      const response = await axios.get(`${API_BASE_URL}/api/leaves/manager/employees`, {
         params: { search }
       });
       setRecords(response.data);

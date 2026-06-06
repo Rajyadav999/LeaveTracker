@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
+import API_BASE_URL from '../config/api';
 import { 
   Search, 
   Filter, 
@@ -42,7 +43,7 @@ export const LeaveHistory = () => {
   const fetchLeaveHistory = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/api/leaves/history', {
+      const response = await axios.get(`${API_BASE_URL}/api/leaves/history`, {
         params: {
           search,
           status: statusFilter,

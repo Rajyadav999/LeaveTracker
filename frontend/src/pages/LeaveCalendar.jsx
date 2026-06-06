@@ -4,6 +4,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { motion, AnimatePresence } from 'framer-motion';
+import API_BASE_URL from '../config/api';
 import {
   Search,
   Filter,
@@ -37,7 +38,7 @@ export const LeaveCalendar = () => {
   const fetchCalendarLeaves = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/api/leaves/calendar');
+      const response = await axios.get(`${API_BASE_URL}/api/leaves/calendar`);
       setEvents(response.data);
     } catch (err) {
       console.error('Error fetching calendar leaves:', err);
