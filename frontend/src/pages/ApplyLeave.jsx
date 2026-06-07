@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, AlertTriangle, CheckCircle, Info, CalendarDays } from 'lucide-react';
+import API_BASE_URL from '../config/api';
 
 export const ApplyLeave = () => {
   const [balances, setBalances] = useState([]);
@@ -25,7 +26,7 @@ export const ApplyLeave = () => {
   // Fetch current balances on mount
   const fetchBalances = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/leaves/balances');
+      const response = await axios.get(`${API_BASE_URL}/api/leaves/balances`);
       setBalances(response.data);
       // Select default Casual Leave balance
       const casualBal = response.data.find(b => b.leave_type === 'Casual Leave');
@@ -127,7 +128,7 @@ export const ApplyLeave = () => {
     }
 
     try {
-      await axios.post('http://localhost:5000/api/leaves/apply', {
+      await axios.post(`${API_BASE_URL}/api/leaves/apply`, {
         leaveType: formData.leaveType,
         startDate: formData.startDate,
         endDate: formData.endDate,

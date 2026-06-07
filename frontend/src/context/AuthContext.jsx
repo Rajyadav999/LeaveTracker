@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import API_BASE_URL from '../config/api';
 
 export const AuthContext = createContext();
 
@@ -27,7 +28,7 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       try {
-        const response = await axios.get('http://localhost:5000/api/auth/profile');
+        const response = await axios.get(`${API_BASE_URL}/api/auth/profile`);
         setUser(response.data);
       } catch (error) {
         console.error('Failed to load user profile', error);
@@ -43,7 +44,7 @@ export const AuthProvider = ({ children }) => {
   // Login handler
   const login = async (email, password) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
       setToken(response.data.token);
       setUser(response.data.user);
       return { success: true };
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }) => {
   // Send Register OTP
   const sendOtp = async (email) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/send-otp', { email });
+      const response = await axios.post(`${API_BASE_URL}/api/auth/send-otp`, { email });
       return { success: true, message: response.data.message };
     } catch (error) {
       return {
@@ -71,7 +72,7 @@ export const AuthProvider = ({ children }) => {
   // Register handler
   const registerUser = async (name, email, password, role, department, otp) => {
     try {
-      await axios.post('http://localhost:5000/api/auth/register', {
+      await axios.post(`${API_BASE_URL}/api/auth/register`, {
         name,
         email,
         password,
@@ -91,7 +92,7 @@ export const AuthProvider = ({ children }) => {
   // Forgot Password handler
   const forgotPassword = async (email) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/forgot-password', { email });
+      const response = await axios.post(`${API_BASE_URL}/api/auth/forgot-password`, { email });
       return { success: true, message: response.data.message };
     } catch (error) {
       return {
@@ -104,7 +105,7 @@ export const AuthProvider = ({ children }) => {
   // Reset Password handler
   const resetPassword = async (email, otp, newPassword) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/reset-password', { email, otp, newPassword });
+      const response = await axios.post(`${API_BASE_URL}/api/auth/reset-password`, { email, otp, newPassword });
       return { success: true, message: response.data.message };
     } catch (error) {
       return {

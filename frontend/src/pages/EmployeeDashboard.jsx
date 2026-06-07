@@ -2,6 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import { motion } from 'framer-motion';
+import API_BASE_URL from '../config/api';
+
 import { 
   BarChart, 
   Bar, 
@@ -34,7 +36,7 @@ export const EmployeeDashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/leaves/stats');
+        const response = await axios.get(`${API_BASE_URL}/api/leaves/stats`);
         setData(response.data);
       } catch (error) {
         console.error('Error fetching dashboard statistics:', error);
