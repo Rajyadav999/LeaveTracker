@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from './AuthContext';
+import API_BASE_URL from '../config/api';
 
 export const NotificationContext = createContext();
 
@@ -12,7 +13,7 @@ export const NotificationProvider = ({ children }) => {
   const fetchNotifications = async () => {
     if (!token) return;
     try {
-      const response = await axios.get('http://localhost:5000/api/notifications');
+      const response = await axios.get(`${API_BASE_URL}/api/notifications`);
       setNotifications(response.data);
       setUnreadCount(response.data.filter(n => !n.is_read).length);
     } catch (error) {
@@ -35,7 +36,7 @@ export const NotificationProvider = ({ children }) => {
 
   const markAsRead = async (id) => {
     try {
-      await axios.put(`http://localhost:5000/api/notifications/${id}/read`);
+      await axios.put(`${API_BASE_URL}/api/notifications/${id}/read`);
       setNotifications(prev =>
         prev.map(n => (n.id === id ? { ...n, is_read: 1 } : n))
       );
@@ -47,7 +48,7 @@ export const NotificationProvider = ({ children }) => {
 
   const markAllAsRead = async () => {
     try {
-      await axios.put('http://localhost:5000/api/notifications/read-all');
+      await axios.put(`${API_BASE_URL}/api/notifications/read-all`);
       setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
       setUnreadCount(0);
     } catch (error) {

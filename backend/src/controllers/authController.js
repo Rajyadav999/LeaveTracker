@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const mailer = require('../utils/mailer');
 require('dotenv').config();
 
+// ─────────────────────────────────────────────
+// REGISTER
+// ─────────────────────────────────────────────
 exports.register = async (req, res) => {
   const { name, email, password, role, department, otp } = req.body;
 
@@ -20,13 +23,15 @@ exports.register = async (req, res) => {
     connection = await db.getConnection();
     await connection.beginTransaction();
 
-    // Verify OTP
+    // ✅ FIX 1: Cast otp column to CHAR to avoid INT vs VARCHAR mismatch
     const [otpRecord] = await connection.query(
-      'SELECT id FROM otp_verifications WHERE email = ? AND otp = ? AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
-      [email, otp]
+      'SELECT id FROM otp_verifications WHERE email = ? AND CAST(otp AS CHAR) = ? AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
+      [email, String(otp)]
     );
 
     if (otpRecord.length === 0) {
+      // ✅ FIX 2: Rollback before releasing when inside a transaction
+      await connection.rollback();
       connection.release();
       return res.status(400).json({ message: 'Invalid or expired OTP verification code.' });
     }
@@ -37,6 +42,8 @@ exports.register = async (req, res) => {
     // Check if user already exists
     const [existing] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
+      // ✅ FIX 3: Rollback before releasing here too
+      await connection.rollback();
       connection.release();
       return res.status(400).json({ message: 'Email is already registered.' });
     }
@@ -68,13 +75,11 @@ exports.register = async (req, res) => {
         );
       }
 
-      // Log activity
       await connection.query(
         'INSERT INTO activity_logs (user_id, action) VALUES (?, ?)',
         [userId, 'Account created and default leave balances allocated']
       );
     } else {
-      // Log activity for manager
       await connection.query(
         'INSERT INTO activity_logs (user_id, action) VALUES (?, ?)',
         [userId, 'Manager account created']
@@ -95,7 +100,9 @@ exports.register = async (req, res) => {
   }
 };
 
-// Login user
+// ─────────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────────
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -104,7 +111,6 @@ exports.login = async (req, res) => {
   }
 
   try {
-    // Check if user exists
     const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
     if (users.length === 0) {
       return res.status(401).json({ message: 'Invalid email or password.' });
@@ -112,13 +118,11 @@ exports.login = async (req, res) => {
 
     const user = users[0];
 
-    // Verify password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    // Sign JWT
     const token = jwt.sign(
       {
         id: user.id,
@@ -131,8 +135,10 @@ exports.login = async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    // Create activity log
-    await db.query('INSERT INTO activity_logs (user_id, action) VALUES (?, ?)', [user.id, 'Logged in to the portal']);
+    await db.query(
+      'INSERT INTO activity_logs (user_id, action) VALUES (?, ?)',
+      [user.id, 'Logged in to the portal']
+    );
 
     res.status(200).json({
       token,
@@ -151,7 +157,9 @@ exports.login = async (req, res) => {
   }
 };
 
-// Get current user profile
+// ─────────────────────────────────────────────
+// GET PROFILE
+// ─────────────────────────────────────────────
 exports.getProfile = async (req, res) => {
   try {
     const [users] = await db.query(
@@ -170,7 +178,9 @@ exports.getProfile = async (req, res) => {
   }
 };
 
-// Update profile details
+// ─────────────────────────────────────────────
+// UPDATE PROFILE
+// ─────────────────────────────────────────────
 exports.updateProfile = async (req, res) => {
   const { name, department } = req.body;
 
@@ -184,19 +194,14 @@ exports.updateProfile = async (req, res) => {
       [name, department, req.user.id]
     );
 
-    // Log activity
-    await db.query('INSERT INTO activity_logs (user_id, action) VALUES (?, ?)', [
-      req.user.id,
-      'Updated profile information'
-    ]);
+    await db.query(
+      'INSERT INTO activity_logs (user_id, action) VALUES (?, ?)',
+      [req.user.id, 'Updated profile information']
+    );
 
     res.status(200).json({
       message: 'Profile updated successfully.',
-      user: {
-        id: req.user.id,
-        name,
-        department
-      }
+      user: { id: req.user.id, name, department }
     });
   } catch (error) {
     console.error('Error updating profile:', error);
@@ -204,7 +209,9 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-// Change password
+// ─────────────────────────────────────────────
+// CHANGE PASSWORD
+// ─────────────────────────────────────────────
 exports.changePassword = async (req, res) => {
   const { oldPassword, newPassword } = req.body;
 
@@ -218,26 +225,20 @@ exports.changePassword = async (req, res) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    const user = users[0];
-
-    // Validate old password
-    const isMatch = await bcrypt.compare(oldPassword, user.password_hash);
+    const isMatch = await bcrypt.compare(oldPassword, users[0].password_hash);
     if (!isMatch) {
       return res.status(400).json({ message: 'Incorrect old password.' });
     }
 
-    // Hash new password
     const salt = await bcrypt.genSalt(10);
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
 
-    // Update password
     await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [newPasswordHash, req.user.id]);
 
-    // Log activity
-    await db.query('INSERT INTO activity_logs (user_id, action) VALUES (?, ?)', [
-      req.user.id,
-      'Changed password'
-    ]);
+    await db.query(
+      'INSERT INTO activity_logs (user_id, action) VALUES (?, ?)',
+      [req.user.id, 'Changed password']
+    );
 
     res.status(200).json({ message: 'Password changed successfully.' });
   } catch (error) {
@@ -246,7 +247,9 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Send OTP for new User Registration
+// ─────────────────────────────────────────────
+// SEND OTP — REGISTRATION
+// ─────────────────────────────────────────────
 exports.sendRegisterOtp = async (req, res) => {
   const { email } = req.body;
 
@@ -261,20 +264,32 @@ exports.sendRegisterOtp = async (req, res) => {
       return res.status(400).json({ message: 'Email is already registered.' });
     }
 
+    // ✅ FIX 4: Rate limiting — block resend if a valid OTP was sent less than 1 minute ago
+    const [recentOtp] = await db.query(
+      'SELECT created_at FROM otp_verifications WHERE email = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE) ORDER BY created_at DESC LIMIT 1',
+      [email]
+    );
+    if (recentOtp.length > 0) {
+      return res.status(429).json({ message: 'Please wait 1 minute before requesting a new OTP.' });
+    }
+
     // Delete any old OTPs for this email
     await db.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
 
-    // Generate 6-digit OTP
+    // Generate 6-digit OTP and store as VARCHAR-safe string
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store in DB, expires in 10 minutes
     await db.query(
       'INSERT INTO otp_verifications (email, otp, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))',
       [email, otp]
     );
 
-    // Send the email
-    await mailer.sendOtpEmail(email, otp);
+    // ✅ FIX 5: Check if mailer actually succeeded, rollback OTP insert on failure
+    const sent = await mailer.sendOtpEmail(email, otp);
+    if (!sent) {
+      await db.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
+      return res.status(500).json({ message: 'Failed to send verification OTP. Please try again.' });
+    }
 
     res.status(200).json({ message: 'Verification OTP sent to your email.' });
   } catch (error) {
@@ -283,7 +298,9 @@ exports.sendRegisterOtp = async (req, res) => {
   }
 };
 
-// Send OTP for Forgot/Reset Password
+// ─────────────────────────────────────────────
+// SEND OTP — FORGOT / RESET PASSWORD
+// ─────────────────────────────────────────────
 exports.sendResetPasswordOtp = async (req, res) => {
   const { email } = req.body;
 
@@ -292,26 +309,35 @@ exports.sendResetPasswordOtp = async (req, res) => {
   }
 
   try {
-    // Check if user exists
     const [users] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
     if (users.length === 0) {
       return res.status(404).json({ message: 'No account found with this email address.' });
     }
 
-    // Delete any old OTPs for this email
+    // ✅ FIX 4 (same): Rate limiting on reset OTP
+    const [recentOtp] = await db.query(
+      'SELECT created_at FROM otp_verifications WHERE email = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE) ORDER BY created_at DESC LIMIT 1',
+      [email]
+    );
+    if (recentOtp.length > 0) {
+      return res.status(429).json({ message: 'Please wait 1 minute before requesting a new OTP.' });
+    }
+
     await db.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
 
-    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store in DB
     await db.query(
       'INSERT INTO otp_verifications (email, otp, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))',
       [email, otp]
     );
 
-    // Send email
-    await mailer.sendOtpEmail(email, otp);
+    // ✅ FIX 5 (same): Verify mailer success, rollback on failure
+    const sent = await mailer.sendOtpEmail(email, otp);
+    if (!sent) {
+      await db.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
+      return res.status(500).json({ message: 'Failed to send password reset OTP. Please try again.' });
+    }
 
     res.status(200).json({ message: 'Password reset OTP sent to your email.' });
   } catch (error) {
@@ -320,7 +346,9 @@ exports.sendResetPasswordOtp = async (req, res) => {
   }
 };
 
-// Reset password using OTP verification
+// ─────────────────────────────────────────────
+// RESET PASSWORD USING OTP
+// ─────────────────────────────────────────────
 exports.resetPassword = async (req, res) => {
   const { email, otp, newPassword } = req.body;
 
@@ -333,40 +361,38 @@ exports.resetPassword = async (req, res) => {
     connection = await db.getConnection();
     await connection.beginTransaction();
 
-    // Verify OTP
+    // ✅ FIX 1 + 2: Cast OTP to CHAR, rollback on invalid OTP
     const [otpRecord] = await connection.query(
-      'SELECT id FROM otp_verifications WHERE email = ? AND otp = ? AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
-      [email, otp]
+      'SELECT id FROM otp_verifications WHERE email = ? AND CAST(otp AS CHAR) = ? AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
+      [email, String(otp)]
     );
 
     if (otpRecord.length === 0) {
+      await connection.rollback();
       connection.release();
       return res.status(400).json({ message: 'Invalid or expired OTP code.' });
     }
 
-    // Delete verified OTP
     await connection.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
 
-    // Get user id to log activity
     const [users] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);
     if (users.length === 0) {
+      await connection.rollback();
       connection.release();
       return res.status(404).json({ message: 'User not found.' });
     }
+
     const userId = users[0].id;
 
-    // Hash new password
     const salt = await bcrypt.genSalt(10);
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
 
-    // Update password
     await connection.query('UPDATE users SET password_hash = ? WHERE id = ?', [newPasswordHash, userId]);
 
-    // Log Activity
-    await connection.query('INSERT INTO activity_logs (user_id, action) VALUES (?, ?)', [
-      userId,
-      'Reset password using email OTP verification'
-    ]);
+    await connection.query(
+      'INSERT INTO activity_logs (user_id, action) VALUES (?, ?)',
+      [userId, 'Reset password using email OTP verification']
+    );
 
     await connection.commit();
     connection.release();

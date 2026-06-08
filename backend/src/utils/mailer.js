@@ -1,7 +1,8 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-// Create transporter using SMTP config if present
+// ✅ FIX 1: Check SMTP config at call time, not at module load time.
+// This prevents transporter being permanently null if dotenv loads after this module.
 const isSmtpConfigured = () => {
   return (
     process.env.SMTP_USER &&
@@ -11,60 +12,104 @@ const isSmtpConfigured = () => {
   );
 };
 
+// ✅ FIX 2: Lazy transporter — created on first use, not at import time.
+// Avoids a permanent null transporter when env vars aren't ready at startup.
 let transporter = null;
-if (isSmtpConfigured()) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: (process.env.SMTP_PORT === '465'), // true for 465, false for other ports
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
-}
 
-// Visual console logging fallback for development
-const logEmailToConsole = (to, subject, htmlContent, textContent) => {
+const getTransporter = () => {
+  if (!isSmtpConfigured()) return null;
+
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      // ✅ FIX 3: parseInt ensures numeric comparison instead of string comparison
+      secure: parseInt(process.env.SMTP_PORT || '587') === 465,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+  }
+
+  return transporter;
+};
+
+// ✅ FIX 4: Verify SMTP connection on startup so bad credentials are caught early
+const verifyTransporterConnection = async () => {
+  const t = getTransporter();
+  if (!t) {
+    console.warn('[Mailer] SMTP not configured. Running in DEV console-log mode.');
+    return;
+  }
+  try {
+    await t.verify();
+    console.log('[Mailer] SMTP connection verified successfully.');
+  } catch (error) {
+    console.error('[Mailer] SMTP connection failed. Check your SMTP credentials in .env:', error.message);
+    // Reset transporter so it's retried next time (e.g. after env fix + restart)
+    transporter = null;
+  }
+};
+
+// Run verification at startup (non-blocking)
+verifyTransporterConnection();
+
+// ─────────────────────────────────────────────
+// Console fallback for development
+// ─────────────────────────────────────────────
+const logEmailToConsole = (to, subject, textContent) => {
   console.log('\n' + '='.repeat(80));
-  console.log(`✉️  [EMAIL NOTIFICATION SENT] (DEV MODE - SMTP NOT CONFIGURED)`);
-  console.log(`📍 To:       ${to}`);
-  console.log(`📌 Subject:  ${subject}`);
+  console.log('✉️  [EMAIL NOTIFICATION - DEV MODE / SMTP NOT CONFIGURED]');
+  console.log(`📍 To:      ${to}`);
+  console.log(`📌 Subject: ${subject}`);
   console.log('-'.repeat(80));
   console.log(textContent);
   console.log('='.repeat(80) + '\n');
 };
 
+// ─────────────────────────────────────────────
+// Core send function
+// ─────────────────────────────────────────────
 const sendMail = async ({ to, subject, html, text }) => {
-  if (isSmtpConfigured()) {
+  const t = getTransporter();
+
+  if (t) {
     try {
-      const info = await transporter.sendMail({
+      const info = await t.sendMail({
         from: `"LeaveTracker Admin" <${process.env.SMTP_USER}>`,
         to,
         subject,
         text,
         html
       });
-      console.log(`[Mailer] Email sent successfully to ${to}. Message ID: ${info.messageId}`);
+      console.log(`[Mailer] Email sent to ${to}. Message ID: ${info.messageId}`);
       return true;
     } catch (error) {
-      console.error(`[Mailer] Error sending email via SMTP to ${to}:`, error);
-      // Fallback to console log on error so execution doesn't block
-      logEmailToConsole(to, subject, html, text);
+      console.error(`[Mailer] SMTP send failed to ${to}:`, error.message);
+
+      // ✅ FIX 5: If SMTP send fails, reset transporter so it's recreated on next attempt
+      // (handles cases like expired credentials or connection drops)
+      transporter = null;
+
+      // Fallback to console so dev can still see the OTP during local testing
+      logEmailToConsole(to, subject, text);
+
+      // Return false so the caller knows the real email didn't go out
       return false;
     }
   } else {
-    logEmailToConsole(to, subject, html, text);
-    return true;
+    logEmailToConsole(to, subject, text);
+    return true; // In dev mode, treat console log as success
   }
 };
 
-/**
- * Send OTP Verification Email
- */
+// ─────────────────────────────────────────────
+// Send OTP Verification Email
+// ─────────────────────────────────────────────
 exports.sendOtpEmail = async (toEmail, otp) => {
   const subject = 'Your LeaveTracker OTP Verification Code';
-  const text = `Your OTP Verification Code is: ${otp}. It is valid for 10 minutes.`;
+  const text = `Your OTP Verification Code is: ${otp}. It is valid for 10 minutes. Do not share this code with anyone.`;
   const html = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
       <div style="text-align: center; margin-bottom: 24px;">
@@ -72,13 +117,13 @@ exports.sendOtpEmail = async (toEmail, otp) => {
       </div>
       <h2 style="color: #0f172a; font-size: 20px; font-weight: 700; text-align: center; margin-top: 0;">Verify Your Email Address</h2>
       <p style="color: #475569; font-size: 14px; line-height: 1.6; text-align: center; margin-bottom: 30px;">
-        Thank you for starting your registration. Use the security code below to verify your email address. This code is valid for 10 minutes.
+        Thank you for starting your registration. Use the security code below to verify your email address. This code is valid for <strong>10 minutes</strong>.
       </p>
       <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 30px;">
         <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #4f46e5; font-family: monospace;">${otp}</span>
       </div>
       <p style="color: #94a3b8; font-size: 11px; text-align: center; margin-bottom: 0;">
-        If you did not request this code, please ignore this email.
+        If you did not request this code, please ignore this email. Do not share this code with anyone.
       </p>
     </div>
   `;
@@ -86,9 +131,9 @@ exports.sendOtpEmail = async (toEmail, otp) => {
   return sendMail({ to: toEmail, subject, html, text });
 };
 
-/**
- * Send Leave Approval Email
- */
+// ─────────────────────────────────────────────
+// Send Leave Approval Email
+// ─────────────────────────────────────────────
 exports.sendLeaveApprovalEmail = async (toEmail, employeeName, leaveType, startDate, endDate) => {
   const subject = '🎉 Your Leave Request Has Been Approved!';
   const text = `Hello ${employeeName},\n\nWe are pleased to inform you that your request for ${leaveType} from ${startDate} to ${endDate} has been approved.\n\nBest regards,\nLeaveTracker Team`;
@@ -128,9 +173,7 @@ exports.sendLeaveApprovalEmail = async (toEmail, employeeName, leaveType, startD
         You can check your updated balances on the LeaveTracker dashboard.
       </p>
       <div style="border-top: 1px solid #f1f5f9; padding-top: 20px; text-align: center;">
-        <p style="color: #94a3b8; font-size: 11px; margin: 0;">
-          This is an automated notification. Please do not reply directly to this email.
-        </p>
+        <p style="color: #94a3b8; font-size: 11px; margin: 0;">This is an automated notification. Please do not reply directly to this email.</p>
       </div>
     </div>
   `;
@@ -138,9 +181,9 @@ exports.sendLeaveApprovalEmail = async (toEmail, employeeName, leaveType, startD
   return sendMail({ to: toEmail, subject, html, text });
 };
 
-/**
- * Send Leave Rejection Email
- */
+// ─────────────────────────────────────────────
+// Send Leave Rejection Email
+// ─────────────────────────────────────────────
 exports.sendLeaveRejectionEmail = async (toEmail, employeeName, leaveType, startDate, endDate, remarks) => {
   const subject = 'Leave Request Update: Rejected';
   const text = `Hello ${employeeName},\n\nWe regret to inform you that your request for ${leaveType} from ${startDate} to ${endDate} has been rejected.\nRemarks: ${remarks || 'None'}\n\nBest regards,\nLeaveTracker Team`;
@@ -175,12 +218,10 @@ exports.sendLeaveRejectionEmail = async (toEmail, employeeName, leaveType, start
             <td style="padding: 4px 0; text-align: right;"><span style="background-color: #ef4444; color: white; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: bold;">Rejected</span></td>
           </tr>
           <tr>
-            <td style="padding: 8px 0 4px 0; font-weight: bold; border-t: 1px solid #fee2e2;" colspan="2">Manager Remarks:</td>
+            <td style="padding: 8px 0 4px 0; font-weight: bold; border-top: 1px solid #fee2e2;" colspan="2">Manager Remarks:</td>
           </tr>
           <tr>
-            <td style="padding: 4px 0; font-style: italic; color: #7f1d1d;" colspan="2">
-              ${remarks || 'No remarks provided.'}
-            </td>
+            <td style="padding: 4px 0; font-style: italic; color: #7f1d1d;" colspan="2">${remarks || 'No remarks provided.'}</td>
           </tr>
         </table>
       </div>
@@ -188,9 +229,7 @@ exports.sendLeaveRejectionEmail = async (toEmail, employeeName, leaveType, start
         Your pending leave balance allocation has been restored.
       </p>
       <div style="border-top: 1px solid #f1f5f9; padding-top: 20px; text-align: center;">
-        <p style="color: #94a3b8; font-size: 11px; margin: 0;">
-          This is an automated notification. Please do not reply directly to this email.
-        </p>
+        <p style="color: #94a3b8; font-size: 11px; margin: 0;">This is an automated notification. Please do not reply directly to this email.</p>
       </div>
     </div>
   `;

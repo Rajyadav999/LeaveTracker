@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Palmtree,
   Menu,
-  X
+  X,
+  Wallet
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -36,6 +37,7 @@ export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
         { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/apply-leave', label: 'Apply Leave', icon: CalendarPlus },
         { path: '/leave-history', label: 'Leave History', icon: History },
+        { path: '/leave-balance', label: 'Leave Balance', icon: Wallet },
         { path: '/calendar', label: 'Leave Calendar', icon: Calendar },
         { path: '/profile', label: 'Profile Settings', icon: User },
       ];
