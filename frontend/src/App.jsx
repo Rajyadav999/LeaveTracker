@@ -14,6 +14,8 @@ import { LeaveRequests } from './pages/LeaveRequests';
 import { EmployeeRecords } from './pages/EmployeeRecords';
 import { Profile } from './pages/Profile';
 import { LeaveCalendar } from './pages/LeaveCalendar';
+import { LeaveBalance } from './pages/LeaveBalance';
+import { LeaveRequestDetails } from './pages/LeaveRequestDetails';
 
 import { Sidebar } from './components/layout/Sidebar';
 import { Navbar } from './components/layout/Navbar';
@@ -111,6 +113,17 @@ function AppRoutes() {
         } 
       />
 
+      <Route 
+        path="/leave-balance" 
+        element={
+          <ProtectedRoute allowedRoles={['employee']}>
+            <LayoutWrapper>
+              <LeaveBalance />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        } 
+      />
+
       {/* Manager Specific Routes */}
       <Route 
         path="/leave-requests" 
@@ -118,6 +131,17 @@ function AppRoutes() {
           <ProtectedRoute allowedRoles={['manager']}>
             <LayoutWrapper>
               <LeaveRequests />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        } 
+      />
+
+      <Route 
+        path="/leave-requests/:id" 
+        element={
+          <ProtectedRoute allowedRoles={['manager']}>
+            <LayoutWrapper>
+              <LeaveRequestDetails />
             </LayoutWrapper>
           </ProtectedRoute>
         } 
